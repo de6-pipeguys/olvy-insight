@@ -61,15 +61,12 @@ if __name__ == "__main__":
     print("올리브영 스킨케어 랭킹 정보 크롤링 시작 (상세페이지 제외)...")
     crawled_data = crawl_oliveyoung_ranking_simplified()
     
-    cnt=0
     if crawled_data:
         print("\n--- 크롤링 결과 ---")
         for item in crawled_data:
             print(f"랭킹: {item.get('랭킹')}")
             print(f"제품명: {item.get('제품명')}")
             print("=" * 40)
-            cnt += 1
-            if cnt == 10:
-                break
+
     else:
         print("크롤링된 데이터가 없습니다.")
