@@ -3,15 +3,12 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
-from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
-from django.db.models.expressions import result
 from seleniumbase import SB
 from bs4 import BeautifulSoup
 from time import sleep
 import time
 
 # 상품 상세 주소 리스트화
-
 def crawl_product_info() :
     url = "https://www.oliveyoung.co.kr/store/display/getBrandShopDetail.do?onlBrndCd=A001643&t_page=%EC%83%81%ED%92%88%EC%83%81%EC%84%B8&t_click=%EB%B8%8C%EB%9E%9C%EB%93%9C%EA%B4%80_%EC%83%81%EB%8B%A8&t_brand_name=%EC%95%84%EC%9D%B4%EB%94%94%EC%96%BC%ED%8F%AC%EB%A7%A8"
 
@@ -22,9 +19,9 @@ def crawl_product_info() :
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     driver.get(url)
 
-    time.sleep(2)  # JS 렌더링 대기
+    time.sleep(2)  
     li_elements = driver.find_elements(By.CSS_SELECTOR, 'li[data-goods-idx]')
-    product_links = []  # 링크 담을 리스트
+    product_links = []  # 상품정보
     # 1번 페이지
     for li in li_elements:
         a_tag = li.find_element(By.CSS_SELECTOR, 'a')
@@ -64,6 +61,7 @@ def crawl_product_info() :
     driver.quit()
     return product_links
 
+#상품 상세 정보 크롤링
 def crawl_product_detail(list) :
     product_data = []
     for url in list :
@@ -77,32 +75,25 @@ def crawl_product_detail(list) :
             try:
                 # 브랜드 명
                 brand_name = sb.get_text("#moveBrandShop")
-                print("브랜드명 :", brand_name)
 
                 # 제품명
                 product_name = sb.get_text("p.prd_name")
-                print("상품명 :", product_name)
 
                 # 할인가
                 discount_price = sb.get_text("span.price-2 strong")
-                print("할인가 :", discount_price)
 
                 # 정가
                 if sb.is_element_present("span.price-1 strike"):
                     origin_price = sb.get_text("span.price-1 strike")
-                    print("정가:", origin_price)
                 else:
                     origin_price = discount_price
-                    print("정가 -> 할인가 대체:", origin_price)
 
                 # 세일플래그
                 flags = []
                 span_elements = sb.find_elements("css selector", "p#icon_area span")
                 for span in span_elements:
                     flags.append(span.text.strip())
-
-                print("상품 플래그 리스트:", flags)
-
+                print("기본 정보 수집 성공")
             except Exception as e:
                 print("기본 정보 수집 실패:", e)
 
@@ -152,7 +143,7 @@ def crawl_product_detail(list) :
                 pctOf2 = percent_list[3]
                 pctOf1 = percent_list[4]
             except Exception as e:
-                print("❌ 리뷰 정보 탭 클릭 완료:", e)
+                print("리뷰 정보 탭 클릭 완료:", e)
                 # 리뷰 정보
                 polls = sb.find_elements("css selector", "dl.poll_type2.type3")
                 review_detail = ""
@@ -170,7 +161,7 @@ def crawl_product_detail(list) :
                             review_detail = review_detail + "," + label + "," + percent
                         print(review_detail)
                     except Exception as e:
-                        print("❌ 오류:", e)
+                        print("리뷰 정보 오류:", e)
             # 저장
             product_info = {
                 "brand": brand_name,  # 브랜드명
