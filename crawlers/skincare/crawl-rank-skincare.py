@@ -12,9 +12,9 @@ from seleniumbase import SB
 from bs4 import BeautifulSoup
 
 
-def get_top100_skincare() -> dict:
+def get_top100_skincare() -> tuple:
     chrome_options = Options()
-    chrome_options.add_argument('--headless') 
+    #chrome_options.add_argument('--headless') 
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
 
@@ -30,6 +30,7 @@ def get_top100_skincare() -> dict:
     time.sleep(2.5)
 
     data = []
+    goods_no_list = []
     items = driver.find_elements(
         By.CSS_SELECTOR, "div.TabsConts.on ul.cate_prd_list li"
     )
@@ -60,6 +61,9 @@ def get_top100_skincare() -> dict:
                     goods_no = a_tag.get_attribute("data-ref-goodsno")
                 except Exception:
                     goods_no = ""
+                # goods_no_list에 바로 추가
+                if goods_no:
+                    goods_no_list.append(goods_no)
                 # 정가 (null 허용)
                 try:
                     price_original = item.find_element(
@@ -81,9 +85,8 @@ def get_top100_skincare() -> dict:
                     flag_list = [
                         span.text.strip() for span in flag_spans if span.text.strip()
                     ]
-                    flag_str = ",".join(flag_list) if flag_list else ""
                 except Exception:
-                    flag_str = ""
+                    flag_list = []
             except Exception as e:
                 print(f"제품 정보 파싱 실패: {e}")
                 continue
@@ -111,16 +114,17 @@ def get_top100_skincare() -> dict:
             except Exception:
                 is_soldout = False
 
+
+
             data.append(
                 {
                     "rank": rank_val,
                     "brandName": brand,
-                    "isPB": is_pb,
+                    "isPb": is_pb,
                     "goodsName": name,
                     "salePrice": price_final,
                     "originalPrice": price_original,
-                    "flagList": flag_str,
-                    "goodsNo": goods_no,
+                    "flagList": flag_list,  # 리스트로 저장
                     "createdAt": collected_at,
                     "isSoldout": bool(is_soldout)
                 }
@@ -133,8 +137,7 @@ def get_top100_skincare() -> dict:
 
     driver.quit()
 
-    # return pd.DataFrame(data)
-    return data
+    return data, goods_no_list
 
 
 def get_product_detail_info(sb, goods_no: str) -> dict:
@@ -143,12 +146,6 @@ def get_product_detail_info(sb, goods_no: str) -> dict:
     time.sleep(1)
     html = sb.driver.page_source
     soup = BeautifulSoup(html, 'html.parser')
-
-    # 카테고리 추출
-    try:
-        category = soup.select_one("a.cate_y#midCatNm").text.strip()
-    except Exception:
-        category = ""
 
     # 총리뷰수
     try:
@@ -187,6 +184,13 @@ def get_product_detail_info(sb, goods_no: str) -> dict:
         except Exception as e:
             print("리뷰 정보 없음:", e)
 
+    try:
+        # 대표 코멘트 추출
+        comment_tag = item.find_element(By.CSS_SELECTOR, "p.img_face em")
+        total_comment = comment_tag.text.strip() if comment_tag else ""
+    except Exception:
+        total_comment = ""
+
     # === 상세스펙(구매정보) 추출 ===
     # 구매정보 탭 클릭
     try:
@@ -213,14 +217,39 @@ def get_product_detail_info(sb, goods_no: str) -> dict:
             print(f"상세 정보 파싱 실패 ({title}): {e}")
         return ""
 
+    # === reviewDetail 파싱 ===
+    review_detail = []
+    try:
+        poll_div = soup.select_one("div.poll_all")
+        if poll_div:
+            for dl in poll_div.select("dl.poll_type2.type3"):
+                type_name = dl.select_one("dt span")
+                type_name = type_name.text.strip() if type_name else ""
+                for li in dl.select("dd ul.list > li"):
+                    value = li.select_one("span.txt")
+                    value = value.text.strip() if value else ""
+                    gauge = li.select_one("em.per")
+                    gauge = gauge.text.strip() if gauge else ""
+                    review_detail.append({
+                        "gauge": gauge,
+                        "type": type_name,
+                        "value": value
+                    })
+    except Exception as e:
+        print(f"reviewDetail 파싱 실패: {e}")
+
     # 상세스펙 정보 추출
     detail_spec = {}
-    spec_titles = ["용량", "주요 사양", "성분"]
-    for title in spec_titles:
-        detail_spec[title] = get_detail_info(soup, title)
+    spec_map = {
+        "용량": "capacity",
+        "주요 사양": "detail",
+        "성분": "ingredient"
+    }
+    for title, key in spec_map.items():
+        detail_spec[key] = get_detail_info(soup, title)
 
     return {
-        "category": category,
+        "totalComment": total_comment,
         "numOfReviews": total_review,
         "avgReview": review_score,
         "pctOf5": pctOf5,
@@ -228,7 +257,9 @@ def get_product_detail_info(sb, goods_no: str) -> dict:
         "pctOf3": pctOf3,
         "pctOf2": pctOf2,
         "pctOf1": pctOf1,
+        "reviewDetail": review_detail,
         **detail_spec,
+
     }
 
 
@@ -342,14 +373,15 @@ def get_product_reviews(sb, goods_no: str, max_pages: int = 0) -> list:
 
 
 ##### 실행 코드 #####
-# df = get_top100_skincare()
+# data, goods_no_list = get_top100_skincare()
 
 # with SB(uc=True, test=True) as sb:
 #     detail_list = []
-#     for goods_no in df['goodsNo']:
+#     for goods_no in goods_no_list:
 #         detail = get_product_detail_info(sb, goods_no)
 #         detail_list.append(detail)
 
+# df = pd.DataFrame(data)
 # detail_df = pd.DataFrame(detail_list)
 # result_df = pd.concat([df.reset_index(drop=True), detail_df.reset_index(drop=True)], axis=1)
 
