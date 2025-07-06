@@ -1,152 +1,203 @@
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from seleniumbase import SB
 from bs4 import BeautifulSoup
-import pandas as pd
 from time import sleep
+import time
 
-browser = webdriver.Chrome()
+# 상품 상세 주소 리스트화
+def crawl_product_info() :
+    url = "https://www.oliveyoung.co.kr/store/main/getBestList.do?dispCatNo=900000100100001&fltDispCatNo=10000010007&pageIdx=1&rowsPerPage=8&t_page=%EB%9E%AD%ED%82%B9&t_click=%ED%8C%90%EB%A7%A4%EB%9E%AD%ED%82%B9_%EB%A7%A8%EC%A6%88%EC%BC%80%EC%96%B4"
 
-url = "https://www.oliveyoung.co.kr/store/main/getBestList.do?dispCatNo=900000100100001&fltDispCatNo=10000010007&pageIdx=1&rowsPerPage=8&t_page=%EB%9E%AD%ED%82%B9&t_click=%ED%8C%90%EB%A7%A4%EB%9E%AD%ED%82%B9_%EB%A7%A8%EC%A6%88%EC%BC%80%EC%96%B4"
-browser.get(url)
-sleep(5)
+    options = Options()
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
 
-soup = BeautifulSoup(browser.page_source, "html.parser")
-itemList = soup.select('.TabsConts.on > ul > li')
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    driver.get(url)
 
-dataSave = []
-rank_num = 0  # 초기 rank 값
+    time.sleep(2)
+    li_elements = driver.find_elements(By.CSS_SELECTOR, 'li[data-goods-idx]')
+    product_links = []  # 상품정보
+    # 1번 페이지
+    print("1번 페이지 갯수 : ",len(li_elements))
+    for li in li_elements:
+        a_tag = li.find_element(By.CSS_SELECTOR, 'a')
+        href = a_tag.get_attribute('href')
+        if href:
+            product_links.append(href)
+    # 2번 페이지
+    try:
+        page_2_btn = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, 'a[data-page-no="2"]'))
+        )
+        driver.execute_script("arguments[0].click();", page_2_btn)  # JS 기반 클릭
+        print("✅ 2번 페이지 클릭 완료")
+    except Exception as e:
+        print("❌ 클릭 실패:", e)
+    # # 2~3번 페이지
+    # for page_no in range(2, 4):
+    #     print(f"\n✅ {page_no}페이지 클릭 시도")
+    #
+    #     # 페이지 버튼 클릭 (JavaScript 클릭)
+    #     try:
+    #         page_btn = driver.find_element(By.CSS_SELECTOR, f'a[data-page-no="{page_no}"]')
+    #         driver.execute_script("arguments[0].click();", page_btn)
+    #     except:
+    #         print(f"❌ {page_no}페이지 버튼 클릭 실패")
+    #         continue
+    #
+    #     # 페이지 전용 상품이 등장할 때까지 대기 (간단한 방식)
+    #     time.sleep(2)
+    #
+    #     # 상품 li들 다시 추출
+    #     product_items = driver.find_elements(By.CSS_SELECTOR, 'li[data-goods-idx]')
+    #
+    #     for item in product_items:
+    #         a_tag = item.find_element(By.TAG_NAME, 'a')
+    #         href = a_tag.get_attribute("href")
+    #         product_links.append(href)
 
-for i, item in enumerate(itemList):
-    print(f"\n▶ {i + 1}번째 아이템 처리 중...")
+    # 창을 닫지 않고 대기
+    input("👉 Enter 키를 누르면 창이 닫힙니다...")
 
-    # 순위 rank ('오특'제품은 계산으로 저장)
-    rank_tag = item.select('span.thumb_flag.best')
-    if rank_tag:
-        rank = int(rank_tag[0].text.strip())
-        is_special = False
-    else:
-        rank = rank_num + 1
-        is_special = True
-    rank_num = rank
+    # 필요시 수동 종료
+    driver.quit()
+    return product_links
 
-    # 브랜드명 brandName
-    brandName = item.select('span.tx_brand')[0].text.strip()
-    # PB여부 isPb
-    isPb = 1 if brandName == '딜라이트 프로젝트' else 0
-    # 상품명 goodsName
-    goodsName = item.select('p.tx_name')[0].text.strip()
-    # 할인가 salePrice
-    salePrice = item.select('p.prd_price > span.tx_cur > span.tx_num')[0].text.strip()
-    # 정가 originalPrice (없으면 salePrice값 저장)
-    org_tag = item.select('p.prd_price > span.tx_org > span.tx_num')
-    originalPrice = org_tag[0].text.strip() if org_tag else salePrice
-    # 기타 혜택 flagList(리스트형태, '오특'제품은 추가)
-    flag_tags = item.select('p.prd_flag > span.icon_flag')
-    flagList = [tag.text.strip() for tag in flag_tags] if flag_tags else []
-    if is_special:
-        flagList.append('오특')
+#상품 상세 정보 크롤링
+def crawl_product_detail(list) :
+    product_data = []
+    for url in list :
+        print(url)
+        with SB(uc=True, test=True) as sb:
+            sb.uc_open_with_reconnect(url, reconnect_time=60)
 
-    data = {
-        'rank': rank,
-        'brandName': brandName,
-        'isPb': isPb,
-        'goodsName': goodsName,
-        'salePrice': salePrice,
-        'originalPrice': originalPrice,
-        'flagList': flagList
-    }
+            html = sb.driver.page_source
+            soup = BeautifulSoup(html, 'html.parser')
 
-    ##상세페이지 수집
-    link_tag = item.select_one('a.prd_thumb')
-    # 상세페이지 주소 goodsUrl
-    goodsUrl = link_tag['href'] if link_tag and 'href' in link_tag.attrs else ''
+            try:
+                # 브랜드 명
+                brand_name = sb.get_text("#moveBrandShop")
 
-    if goodsUrl:
-        browser.get(goodsUrl)
-        sleep(3)
+                # 제품명
+                product_name = sb.get_text("p.prd_name")
 
-        try:
-            review_btn = browser.find_element(By.CSS_SELECTOR, 'li#reviewInfo a.goods_reputation')
-            review_btn.click()
-            sleep(2)
+                # 할인가
+                discount_price = sb.get_text("span.price-2 strong")
 
-            detail_soup = BeautifulSoup(browser.page_source, "html.parser")
+                # 정가
+                if sb.is_element_present("span.price-1 strike"):
+                    origin_price = sb.get_text("span.price-1 strike")
+                else:
+                    origin_price = discount_price
 
-            # ▶ 필수 리뷰 정보
-            # 총 코멘트 totalComment
-            totalComment = detail_soup.select_one('p.img_face > em').text.strip()
-            # 총 리뷰 수 numOfReviews
-            numOfReviews = detail_soup.select_one('p.total > em').text.strip()
+                # 세일플래그
+                flags = []
+                span_elements = sb.find_elements("css selector", "p#icon_area span")
+                for span in span_elements:
+                    flags.append(span.text.strip())
+                print("기본 정보 수집 성공")
+            except Exception as e:
+                print("기본 정보 수집 실패:", e)
 
-            # 5~1점 (%) 분포
-            li_tags = detail_soup.select('ul.graph_list > li > span.per')
-            pctOf5 = int(li_tags[0].get_text(strip=True).replace('%', ''))  # 컬럼명: pctOf5
-            pctOf4 = int(li_tags[1].get_text(strip=True).replace('%', ''))  # 컬럼명: pctOf4
-            pctOf3 = int(li_tags[2].get_text(strip=True).replace('%', ''))  # 컬럼명: pctOf3
-            pctOf2 = int(li_tags[3].get_text(strip=True).replace('%', ''))  # 컬럼명: pctOf2
-            pctOf1 = int(li_tags[4].get_text(strip=True).replace('%', ''))  # 컬럼명: pctOf1
+            # 구매정보 클릭
+            try:
+                sb.click("a.goods_buyinfo")
+                sleep(2)
+                print("✅ 구매정보 탭 클릭 완료")
 
-            # 포장상태
-            packing_data = {'pakingGood': 0, 'pakingMiddle': 0,
-                            'pakingBad': 0}  # 컬럼명들: pakingGood, pakingMiddle, pakingBad
-            # 유통기한
-            exp_data = {'expLong': 0, 'expMiddle': 0, 'expShort': 0}  # 컬럼명들: expLong, expMiddle, expShort
-            # 맛
-            taste_data = {'tasteGood': 0, 'tasteMiddle': 0, 'tasteBad': 0}  # 컬럼명들: tasteGood, tasteMiddle, tasteBad
+                # 전체 <dl> 리스트 가져오기
+                dl_elements = sb.find_elements("css selector", "dl.detail_info_list")
 
-            review_list = detail_soup.select('div.poll_all.clrfix > .poll_type2.type3')
-            if len(review_list) >= 3:
-                categories = [
-                    ('paking', ['Good', 'Middle', 'Bad']),
-                    ('exp', ['Long', 'Middle', 'Short']),
-                    ('taste', ['Good', 'Middle', 'Bad'])
-                ]
+                # 가져올 인덱스 (1, 2, 7번째 → 파이썬 기준: 0, 1, 6)
+                target_indices = [1, 2, 7]
+                target_fields = ['capacity', 'detail', 'ingredients']  # 원하는 이름으로 바꾸세요
 
-                for idx, (prefix, suffixes) in enumerate(categories):
-                    item_list = review_list[idx].select('dd li')
-                    for i, suffix in enumerate(suffixes):
-                        key = f"{prefix}{suffix}"  # 각 컬럼명 구성 예: 'pakingGood' 등
-                        try:
-                            value = int(item_list[i].select_one('em').get_text(strip=True).replace('%', ''))
-                        except:
-                            value = 0
-                        if prefix == 'paking':
-                            packing_data[key] = value
-                        elif prefix == 'exp':
-                            exp_data[key] = value
-                        elif prefix == 'taste':
-                            taste_data[key] = value
-            else:
-                print("→ 상세 리뷰 항목 없음 (packing/exp/taste)")
+                result = {}
 
-            # ▶ 상세정보 저장
-            data.update({
-                'totalComment': totalComment,
-                'numOfReviews': numOfReviews,
-                'pctOf5': pctOf5,
-                'pctOf4': pctOf4,
-                'pctOf3': pctOf3,
-                'pctOf2': pctOf2,
-                'pctOf1': pctOf1,
-                **packing_data,
-                **exp_data,
-                **taste_data
-            })
+                for idx, field in zip(target_indices, target_fields):
+                    try:
+                        dd = dl_elements[idx].find_element("css selector", "dd").text.strip()
+                        result[field] = dd
+                    except Exception as e:
+                        result[field] = None  # 값이 없을 경우 None 처리
 
-            print(f"✓ 리뷰 데이터 수집 완료: {goodsName}")
+                print(result)
+            except Exception as e:
+                print("구매정보 탭 클릭 실패:", e)
 
-        except Exception as e:
-            print(f"[오류] 리뷰 탭 클릭 또는 파싱 실패: {e}")
-            data.update({
-                'pakingGood': 0, 'pakingMiddle': 0, 'pakingBad': 0,
-                'expLong': 0, 'expMiddle': 0, 'expShort': 0,
-                'tasteGood': 0, 'tasteMiddle': 0, 'tasteBad': 0
-            })
-
-    dataSave.append(data)
-
-# ▶ DataFrame 생성
-raw_health = pd.DataFrame(dataSave)
-
-# ▶ 브라우저 종료
-browser.quit()
+            # 리뷰정보 클릭 및 수집
+            try:
+                sb.click("a.goods_reputation")
+                sleep(2)
+                print("✅ 리뷰 정보 탭 클릭 완료")
+                # 리뷰정리
+                totalComment = sb.get_text("div.grade_img em")
+                # 리뷰갯수
+                numOfReviews = sb.get_text("div.star_area em")
+                # 리뷰 평점
+                avgReview = sb.get_text("div.star_area strong")
+                # 리뷰 점수 퍼센트
+                percent_elements = sb.find_elements("css selector", "ul.graph_list span.per")
+                percent_list = [el.text.strip() for el in percent_elements]
+                pctOf5 = percent_list[0]
+                pctOf4 = percent_list[1]
+                pctOf3 = percent_list[2]
+                pctOf2 = percent_list[3]
+                pctOf1 = percent_list[4]
+            except Exception as e:
+                print("리뷰 정보 탭 클릭 완료:", e)
+                # 리뷰 정보
+                polls = sb.find_elements("css selector", "dl.poll_type2.type3")
+                review_detail = []
+                for poll in polls:
+                    try:
+                        # 설문 제목 (예: 피부타입)
+                        title = poll.find_element("css selector", "span").text.strip()
+                        # 하위 항목들 (li)
+                        li_tags = poll.find_elements("css selector", "ul.list > li")
+                        for li in li_tags:
+                            label = li.find_element("css selector", "span.txt").text.strip()
+                            percent = li.find_element("css selector", "em.per").text.strip()
+                            review_detail.append({
+                                "type": title,
+                                "value": label,
+                                "gauge": percent
+                            })
+                    except Exception as e:
+                        print("리뷰 정보 오류:", e)
+            # 저장
+            product_info = {
+                "brand": brand_name,  # 브랜드명
+                "product": product_name,  # 상품이름
+                "discountPrice": discount_price,  # 할인가
+                "originPrice": origin_price,  # 정가
+                "isPB": 1,  # Pb여부
+                "flag": flags,  # 혜택
+                "totalcoment": totalComment,
+                "numOfReviews": numOfReviews,
+                "avgReview": avgReview,
+                "pctOf5": pctOf5,
+                "pctOf4": pctOf4,
+                "pctOf3": pctOf3,
+                "pctOf2": pctOf2,
+                "pctOf1": pctOf1,
+                "capacity": result['capacity'],
+                "detail": result['detail'],
+                "ingredients": result['ingredients']
+            }
+            product_data.append(product_info)
+        from pprint import pprint
+        pprint(product_data)
+    return product_data
+def jsonSave():
+    return
+product_links = crawl_product_info()
+print(len(product_links))
+# crawl_product_detail(product_links)

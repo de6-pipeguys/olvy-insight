@@ -46,13 +46,13 @@ with SB(uc=True, test=True) as sb:
         print("상품 플래그 리스트:", flags)
 
     except Exception as e:
-        print("❌ 기본 정보 수집 실패:", e)
+        print("기본 정보 수집 실패:", e)
 
     # 구매정보 클릭
     try:
         sb.click("a.goods_buyinfo")
         sleep(2)
-        print("✅ 구매정보 탭 클릭 완료")
+        print("구매정보 탭 클릭 완료")
 
         # 전체 <dl> 리스트 가져오기
         dl_elements = sb.find_elements("css selector", "dl.detail_info_list")
@@ -72,13 +72,13 @@ with SB(uc=True, test=True) as sb:
 
         print(result)
     except Exception as e:
-        print("❌ 구매정보 탭 클릭 실패:", e)
+        print("구매정보 탭 클릭 실패:", e)
 
     # 리뷰정보 클릭 및 수집
     try:
         sb.click("a.goods_reputation")
         sleep(2)
-        print("✅ 리뷰 정보 탭 클릭 완료")
+        print("리뷰 정보 탭 클릭 완료")
         # 리뷰정리
         totalComment = sb.get_text("div.grade_img em")
         # 리뷰갯수
@@ -94,26 +94,27 @@ with SB(uc=True, test=True) as sb:
         pctOf2 = percent_list[3]
         pctOf1 = percent_list[4]
     except Exception as e:
-        print("❌ 리뷰 정보 탭 클릭 완료:", e)
+        print("리뷰 정보 탭 클릭 완료:", e)
 
     # 리뷰 정보
     polls = sb.find_elements("css selector", "dl.poll_type2.type3")
-    review_detail = ""
+    review_detail = []
     for poll in polls:
         try:
             # 설문 제목 (예: 피부타입)
             title = poll.find_element("css selector", "span").text.strip()
-            review_detail = review_detail + "," +title
-
             # 하위 항목들 (li)
             li_tags = poll.find_elements("css selector", "ul.list > li")
             for li in li_tags:
                 label = li.find_element("css selector", "span.txt").text.strip()
                 percent = li.find_element("css selector", "em.per").text.strip()
-                review_detail = review_detail + "," +label +"," + percent
-            print(review_detail)
+                review_detail.append({
+                    "type": title,
+                    "value": label,
+                    "gauge": percent
+                })
         except Exception as e:
-            print("❌ 오류:", e)
+            print("오류:", e)
     # 저장
     product_info = {
         "brand": brand_name,  # 브랜드명

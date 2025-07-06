@@ -1,103 +1,111 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
 from seleniumbase import SB
 from bs4 import BeautifulSoup
 from time import sleep
+import datetime
 import time
-
+from pprint import pprint
+import json
+import os
+data = []
 # 상품 상세 주소 리스트화
-def crawl_product_info() :
-    url = "https://www.oliveyoung.co.kr/store/display/getBrandShopDetail.do?onlBrndCd=A001643&t_page=%EC%83%81%ED%92%88%EC%83%81%EC%84%B8&t_click=%EB%B8%8C%EB%9E%9C%EB%93%9C%EA%B4%80_%EC%83%81%EB%8B%A8&t_brand_name=%EC%95%84%EC%9D%B4%EB%94%94%EC%96%BC%ED%8F%AC%EB%A7%A8"
+def get_brand(brand_code) :
+    url = f"https://www.oliveyoung.co.kr/store/display/getBrandShopDetail.do?onlBrndCd={brand_code}"
+    collected_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    options = Options()
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-    driver.get(url)
-
-    time.sleep(2)  
-    li_elements = driver.find_elements(By.CSS_SELECTOR, 'li[data-goods-idx]')
-    product_links = []  # 상품정보
-    # 1번 페이지
-    for li in li_elements:
-        a_tag = li.find_element(By.CSS_SELECTOR, 'a')
-        href = a_tag.get_attribute('href')
-        print(href)
-        print("======================================================================")
-        if href:
-            product_links.append(href)
-    # 2~3번 페이지
-    for page_no in range(2, 4):
-        print(f"\n✅ {page_no}페이지 클릭 시도")
-
-        # 페이지 버튼 클릭 (JavaScript 클릭)
-        try:
-            page_btn = driver.find_element(By.CSS_SELECTOR, f'a[data-page-no="{page_no}"]')
-            driver.execute_script("arguments[0].click();", page_btn)
-        except:
-            print(f"❌ {page_no}페이지 버튼 클릭 실패")
-            continue
-
-        # 페이지 전용 상품이 등장할 때까지 대기 (간단한 방식)
+    with SB(uc=True, test=True, headless=True) as sb:
+        sb.uc_open_with_reconnect(url, reconnect_time=20)
         time.sleep(2)
 
-        # 상품 li들 다시 추출
-        product_items = driver.find_elements(By.CSS_SELECTOR, 'li[data-goods-idx]')
-        print(f"🔎 상품 수: {len(product_items)}")
+        page = 1
+        while True:
+            if page > 1:
+                try:
+                    # 페이지네이션 버튼 클릭 (페이지가 없으면 break)
+                    sb.click(f"div.pageing a[data-page-no='{page}']")
+                    time.sleep(2)  # ajax 로딩 대기
+                except Exception as e:
+                    print(f"{page}페이지 버튼 클릭 실패 또는 더 이상 페이지 없음: {e}")
+                    break
 
-        for item in product_items:
-            a_tag = item.find_element(By.TAG_NAME, 'a')
-            href = a_tag.get_attribute("href")
-            product_links.append(href)
+            html = sb.driver.page_source
+            soup = BeautifulSoup(html, "html.parser")
 
-    # 창을 닫지 않고 대기
-    input("👉 Enter 키를 누르면 창이 닫힙니다...")
+            # 브랜드명 추출
+            try:
+                brand = soup.select_one("h2.title-detail-brand").text.strip()
+            except Exception:
+                brand = "아이디얼포맨"
 
-    # 필요시 수동 종료
-    driver.quit()
-    return product_links
+            # 상품 목록 추출
+            items = soup.select("ul.prod-list.goodsProd > li")
+            if not items:
+                print(f"{page}페이지에 상품이 없습니다.")
+                break
+
+            for item in items:
+                is_pb = 1
+                # 상품명
+                try:
+                    name = item.select_one("span.prod-name.double-line").text.strip()
+                except Exception:
+                    name = ""
+                # 할인가
+                try:
+                    price_final = item.select_one("strong.total").text.strip().replace("원", "").replace(",", "").replace("~", "")
+                except Exception:
+                    price_final = ""
+                # 정가
+                try:
+                    price_original = item.select_one("span.origin").text.strip().replace("원", "").replace(",", "")
+                except Exception:
+                    price_original = ""
+                # 혜택
+                try:
+                    flag_spans = item.select("div.flags span.flag")
+                    flag_list = [span.text.strip() for span in flag_spans if span.text.strip()]
+                    flag_str = ",".join(flag_list) if flag_list else ""
+                except Exception:
+                    flag_str = ""
+                # 품절여부
+                try:
+                    soldout_flag = item.select_one("span.status_flag.soldout")
+                    is_soldout = bool(soldout_flag)
+                except Exception:
+                    is_soldout = False
+                # 주소
+                try:
+                    link = item.select_one("a")["href"]
+                except Exception:
+                    link = ""
+                data.append({
+                    "brandName": brand,
+                    "isPB": is_pb,
+                    "goodsName": name,
+                    "salePrice": price_final,
+                    "originalPrice": price_original,
+                    "flagList": flag_str,
+                    "isSoldout": is_soldout,
+                    "createdAt": collected_at,
+                    "link": link
+                })
+            # 다음 페이지로
+            page += 1
+
+    return data
 
 #상품 상세 정보 크롤링
-def crawl_product_detail(list) :
-    product_data = []
-    for url in list :
-        print(url)
+def crawl_product_detail(data) :
+    for item in data :
+        goodsName = item['goodsName']
+        url = item['link']
+        review_detail = []
         with SB(uc=True, test=True) as sb:
             sb.uc_open_with_reconnect(url, reconnect_time=60)
 
             html = sb.driver.page_source
             soup = BeautifulSoup(html, 'html.parser')
 
-            try:
-                # 브랜드 명
-                brand_name = sb.get_text("#moveBrandShop")
-
-                # 제품명
-                product_name = sb.get_text("p.prd_name")
-
-                # 할인가
-                discount_price = sb.get_text("span.price-2 strong")
-
-                # 정가
-                if sb.is_element_present("span.price-1 strike"):
-                    origin_price = sb.get_text("span.price-1 strike")
-                else:
-                    origin_price = discount_price
-
-                # 세일플래그
-                flags = []
-                span_elements = sb.find_elements("css selector", "p#icon_area span")
-                for span in span_elements:
-                    flags.append(span.text.strip())
-                print("기본 정보 수집 성공")
-            except Exception as e:
-                print("기본 정보 수집 실패:", e)
-
-            # 구매정보 클릭
+            # 구매정보 
             try:
                 sb.click("a.goods_buyinfo")
                 sleep(2)
@@ -123,7 +131,7 @@ def crawl_product_detail(list) :
             except Exception as e:
                 print("구매정보 탭 클릭 실패:", e)
 
-            # 리뷰정보 클릭 및 수집
+            # 리뷰정보 
             try:
                 sb.click("a.goods_reputation")
                 sleep(2)
@@ -144,32 +152,28 @@ def crawl_product_detail(list) :
                 pctOf1 = percent_list[4]
             except Exception as e:
                 print("리뷰 정보 탭 클릭 완료:", e)
-                # 리뷰 정보
-                polls = sb.find_elements("css selector", "dl.poll_type2.type3")
-                review_detail = ""
-                for poll in polls:
-                    try:
-                        # 설문 제목 (예: 피부타입)
-                        title = poll.find_element("css selector", "span").text.strip()
-                        review_detail = review_detail + "," + title
+                
+            # 리뷰 상세 정보
+            polls = sb.find_elements("css selector", "dl.poll_type2.type3")
+            for poll in polls:
+                try:
+                    # 설문 제목 (예: 피부타입)
+                    title = poll.find_element("css selector", "span").text.strip()
+                    # 하위 항목들 (li)
+                    li_tags = poll.find_elements("css selector", "ul.list > li")
+                    for li in li_tags:
+                        label = li.find_element("css selector", "span.txt").text.strip()
+                        percent = li.find_element("css selector", "em.per").text.strip()
+                        review_detail.append({
+                            "type": title,
+                            "value": label,
+                            "gauge": percent
+                        })
+                except Exception as e:
+                    print("리뷰 정보 오류:", e)
 
-                        # 하위 항목들 (li)
-                        li_tags = poll.find_elements("css selector", "ul.list > li")
-                        for li in li_tags:
-                            label = li.find_element("css selector", "span.txt").text.strip()
-                            percent = li.find_element("css selector", "em.per").text.strip()
-                            review_detail = review_detail + "," + label + "," + percent
-                        print(review_detail)
-                    except Exception as e:
-                        print("리뷰 정보 오류:", e)
             # 저장
-            product_info = {
-                "brand": brand_name,  # 브랜드명
-                "product": product_name,  # 상품이름
-                "discountPrice": discount_price,  # 할인가
-                "originPrice": origin_price,  # 정가
-                "isPB": 1,  # Pb여부
-                "flag": flags,  # 혜택
+            product_detail_info = {
                 "totalcoment": totalComment,
                 "numOfReviews": numOfReviews,
                 "avgReview": avgReview,
@@ -180,12 +184,24 @@ def crawl_product_detail(list) :
                 "pctOf1": pctOf1,
                 "capacity": result['capacity'],
                 "detail": result['detail'],
-                "ingredients": result['ingredients']
+                "ingredients": result['ingredients'],
+                "review_detail" : review_detail
             }
-            product_data.append(product_info)
-        from pprint import pprint
-        pprint(product_data)
-    return product_data
+            # 업데이트
+            item.update(product_detail_info)
+            pprint(item)
+            print("===============================================================")
+    return
+def save_json(data,time):
+    file_name = f"{time}_PB_아이디얼포맨.json"
+    folder_path = "JSON"
+    full_path = os.path.join(folder_path, file_name)
+    with open(full_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    print(f"✅ 저장 완료: {full_path}")
+    return
 
-product_links = crawl_product_info()
-crawl_product_detail(product_links)
+collected_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+data = get_brand("A001643")
+crawl_product_detail(data)
+save_json(data ,collected_at)

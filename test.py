@@ -1,57 +1,43 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
-from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 import time
 
-# 상품 상세 주소 리스트화
+options = Options()
+options.add_argument('--no-sandbox')
+options.add_argument('--disable-dev-shm-usage')
+driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
-def crawl_product_info() :
-    url = "https://www.oliveyoung.co.kr/store/display/getBrandShopDetail.do?onlBrndCd=A001643&t_page=%EC%83%81%ED%92%88%EC%83%81%EC%84%B8&t_click=%EB%B8%8C%EB%9E%9C%EB%93%9C%EA%B4%80_%EC%83%81%EB%8B%A8&t_brand_name=%EC%95%84%EC%9D%B4%EB%94%94%EC%96%BC%ED%8F%AC%EB%A7%A8"
+url = "https://www.oliveyoung.co.kr/store/display/getBrandShopDetail.do?onlBrndCd=A001643"
+driver.get(url)
 
-    options = Options()
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
+# 첫 페이지 상품 수 확인
+time.sleep(2)
+first_page_items = driver.find_elements(By.CSS_SELECTOR, 'li[data-goods-idx]')
+print(f"✅ 1페이지 상품 수: {len(first_page_items)}")
 
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-    driver.get(url)
+# 2번 페이지 버튼 클릭 (send_keys 방식)
+try:
+    page_2_btn = WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, 'a[data-page-no="2"]'))
+    )
+    page_2_btn.send_keys('\n')
+    page_2_btn.send_keys('\n')
+    print("✅ 2페이지 버튼 엔터 입력 완료")
+except Exception as e:
+    print(f"❌ 2페이지 버튼 클릭 실패: {e}")
 
-    time.sleep(2)  # JS 렌더링 대기
+# 페이지 전환 대기
+time.sleep(3)
 
-    # totCnt span 추출
-    totcnt = driver.find_element(By.ID, 'totCnt')
-    totcnt = totcnt.text.strip()
-    print("총 상품 수:", totcnt)
+# 두 번째 페이지 상품 수 다시 확인
+second_page_items = driver.find_elements(By.CSS_SELECTOR, 'li[data-goods-idx]')
+print(f"✅ 2페이지 이후 상품 수: {len(second_page_items)}")
 
-    # 주소 추출
-    li_elements = driver.find_elements(By.CSS_SELECTOR, 'li[data-goods-idx]')
-    try:
-        li = driver.find_element(By.CSS_SELECTOR, 'li[data-goods-idx]')
-
-        # 링크
-        product_link = li.find_elements(By.CSS_SELECTOR, 'a')
-        product_link = product_link[0].get_attribute('href') if product_link else 'N/A'
-
-        print("✅ 주소 :", product_link)
-
-    except:
-        print("❌ 상품 정보 추출 실패")
-
-    driver.quit()
-    # 제품 상세 페이지 주소 리스트화
-    parsed = urlparse(product_link)
-    query = parse_qs(parsed.query)
-    url_list = []
-    for i in range(1, int(totcnt) + 1):
-        query['t_number'] = [str(i)]
-        new_query = urlencode(query, doseq=True)
-        new_url = urlunparse(parsed._replace(query=new_query))
-        url_list.append(new_url)
-    return url_list
-
-def crawl_product_detail(list) :
-    return
-
-url_list = crawl_product_info()
+input("👉 엔터를 누르면 브라우저를 닫습니다.")
+driver.quit()
