@@ -4,22 +4,24 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
 import pandas as pd
 import time
 import datetime
 from seleniumbase import SB
 from bs4 import BeautifulSoup
 
+# 환경변수 설정 (ARM64 아키텍처용 드라이버를 다운로드)
+import os
+os.environ['WDM_ARCH'] = 'arm64'
 
 def get_top100_skincare() -> tuple:
     chrome_options = Options()
-    #chrome_options.add_argument('--headless') 
+    chrome_options.add_argument('--headless') 
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
 
     driver = webdriver.Chrome(
-        service=Service(ChromeDriverManager().install()), options=chrome_options
+        service=Service("/usr/local/bin/chromedriver"), options=chrome_options
     )
 
     # 올리브영 스킨케어 랭킹 페이지 열기
@@ -262,7 +264,7 @@ def get_product_detail_info(sb, goods_no: str) -> dict:
 
     }
 
-
+# 리뷰 크롤링은 사용하지 않음
 def get_product_reviews(sb, goods_no: str, max_pages: int = 0) -> list:
     url = f"https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo={goods_no}"
     sb.uc_open_with_reconnect(url, reconnect_time=5)
