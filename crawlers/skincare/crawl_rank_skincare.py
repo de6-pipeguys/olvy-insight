@@ -4,10 +4,8 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import pandas as pd
 import time
 import datetime
-from seleniumbase import SB
 from bs4 import BeautifulSoup
 from airflow.utils.log.logging_mixin import LoggingMixin
 
