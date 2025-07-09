@@ -4,28 +4,29 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import pandas as pd
 import time
 import datetime
-from seleniumbase import SB
 from bs4 import BeautifulSoup
+from airflow.utils.log.logging_mixin import LoggingMixin
 
-# 환경변수 설정 (ARM64 아키텍처용 드라이버를 다운로드)
-import os
-os.environ['WDM_ARCH'] = 'arm64'
-
-def get_top100_food() -> tuple:
+def get_top100() -> tuple:
+    log = LoggingMixin().log
+    log.info("[get_top100_{log_tag}] 시작")
     chrome_options = Options()
-    chrome_options.add_argument('--headless') 
+    chrome_options.add_argument('--headless=new') 
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument(
+        "user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.5735.90 Safari/537.36"
+    )
 
     driver = webdriver.Chrome(
         service=Service("/usr/local/bin/chromedriver"), options=chrome_options
     )
 
-    # 올리브영 "food" 랭킹 페이지 열기
+    # 올리브영 푸드 랭킹 페이지 열기
     url = "https://www.oliveyoung.co.kr/store/main/getBestList.do?dispCatNo=900000100100001&fltDispCatNo=10000020002&pageIdx=1&rowsPerPage=8&t_page=%EB%9E%AD%ED%82%B9&t_click=%ED%8C%90%EB%A7%A4%EB%9E%AD%ED%82%B9_%ED%91%B8%EB%93%9C"
+    log.info(f"[get_top100_skincare] URL 오픈: {url}")
     driver.get(url)
 
     # 페이지 로딩 대기
@@ -36,6 +37,7 @@ def get_top100_food() -> tuple:
     items = driver.find_elements(
         By.CSS_SELECTOR, "div.TabsConts.on ul.cate_prd_list li"
     )
+    log.info(f"[get_top100_skincare] 상품 개수: {len(items)}")
     rank = 1
     # 타임스탬프 생성
     collected_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -79,7 +81,7 @@ def get_top100_food() -> tuple:
                         By.CSS_SELECTOR, ".prd_price .tx_cur .tx_num"
                     ).text.strip()
                 except Exception as e:
-                    print(f"구매가격 정보 파싱 실패: {e}")
+                    log.warning(f"[get_top100_skincare] 구매가격 정보 파싱 실패: {e}")
                     price_final = ""
                 # 기타 프로모션 정보(null 허용)
                 try:
@@ -90,7 +92,7 @@ def get_top100_food() -> tuple:
                 except Exception:
                     flag_list = []
             except Exception as e:
-                print(f"제품 정보 파싱 실패: {e}")
+                log.warning(f"[get_top100_skincare] 제품 정보 파싱 실패: {e}")
                 continue
 
             # 올리브영 PB 브랜드 여부 확인
@@ -131,38 +133,42 @@ def get_top100_food() -> tuple:
                     "isSoldout": bool(is_soldout)
                 }
             )
+            log.info(f"[get_top100_skincare] {rank_val}위 상품: {brand} {name} (goods_no: {goods_no})")
             rank += 1
 
         except Exception as e:
-            print(f"제품 정보 파싱 실패: {e}")
+            log.warning(f"[get_top100_skincare] 제품 정보 파싱 실패: {e}")
             continue
 
     driver.quit()
-
+    log.info(f"[get_top100_skincare] 크롤링 종료: 총 상품 {len(data)}개, goods_no {len(goods_no_list)}개")
     return data, goods_no_list
 
 
 def get_product_detail_info(sb, goods_no: str) -> dict:
+    log = LoggingMixin().log
     url = f"https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo={goods_no}"
+    log.info(f"[get_product_detail_info] 시작: goods_no={goods_no}")
     sb.uc_open_with_reconnect(url, reconnect_time=5)
+    log.info(f"[get_product_detail_info] URL 오픈: {url}")
     time.sleep(1)
     html = sb.driver.page_source
     soup = BeautifulSoup(html, 'html.parser')
 
-    # 총리뷰수
     try:
         review_info = soup.select_one("#repReview em")
         total_review = int(review_info.text.strip().replace("(", "").replace("건)", "").replace(",", ""))
+        log.info(f"[get_product_detail_info] 총 리뷰수: {total_review}")
     except Exception as e:
-        print(f"총 리뷰수 파싱 실패: {e}")
+        log.warning(f"[get_product_detail_info] 총 리뷰수 파싱 실패: {e}")
         total_review = 0
 
-    # 리뷰평점
     try:
         review_score = soup.select_one("#repReview b")
         review_score = float(review_score.text.strip())
+        log.info(f"[get_product_detail_info] 리뷰평점: {review_score}")
     except Exception as e:
-        print(f"리뷰평점 파싱 실패: {e}")
+        log.warning(f"[get_product_detail_info] 리뷰평점 파싱 실패: {e}")
         review_score = None
 
     # 리뷰 분포 기본값
@@ -183,15 +189,21 @@ def get_product_detail_info(sb, goods_no: str) -> dict:
                 pctOf3 = percent_list[2]
                 pctOf2 = percent_list[3]
                 pctOf1 = percent_list[4]
-        except Exception as e:
-            print("리뷰 정보 없음:", e)
+                log.info(f"[get_product_detail_info] 리뷰 분포: {percent_list}")
 
-    try:
-        # 대표 코멘트 추출
-        comment_tag = item.find_element(By.CSS_SELECTOR, "p.img_face em")
-        total_comment = comment_tag.text.strip() if comment_tag else ""
-    except Exception:
-        total_comment = ""
+            try:
+                # 대표 코멘트 추출
+                comment_tag = sb.find_element(By.CSS_SELECTOR, "p.img_face em")
+                total_comment = comment_tag.text.strip() if comment_tag else ""
+                log.info(f"[get_product_detail_info] 대표 코멘트 추출: {total_comment}")
+            except Exception:
+                total_comment = ""
+                log.warning("[get_product_detail_info] 대표 코멘트 추출 실패")
+                
+        except Exception as e:
+            log.warning(f"[get_product_detail_info] 리뷰 정보 없음: {e}")
+
+
 
     # === 상세스펙(구매정보) 추출 ===
     # 구매정보 탭 클릭
@@ -200,8 +212,9 @@ def get_product_detail_info(sb, goods_no: str) -> dict:
         time.sleep(1)  # ajax 로딩 대기
         html = sb.driver.page_source
         soup = BeautifulSoup(html, 'html.parser')
+        log.info("[get_product_detail_info] 구매정보 탭 클릭 및 파싱 성공")
     except Exception as e:
-        print("구매정보 탭 클릭 실패:", e)
+        log.warning(f"[get_product_detail_info] 구매정보 탭 클릭 실패: {e}")
 
     # 용량, 주요사양, 성분 추출
     def get_detail_info(soup, title):
@@ -214,9 +227,10 @@ def get_product_detail_info(sb, goods_no: str) -> dict:
                     dt_text = dt.text.strip()
                     dd_text = dd.text.strip()
                     if title in dt_text:
+                        log.info(f"[get_product_detail_info] {title} 추출: {dd_text}")
                         return dd_text
         except Exception as e:
-            print(f"상세 정보 파싱 실패 ({title}): {e}")
+            log.warning(f"[get_product_detail_info] 상세 정보 파싱 실패 ({title}): {e}")
         return ""
 
     # === reviewDetail 파싱 ===
@@ -237,8 +251,9 @@ def get_product_detail_info(sb, goods_no: str) -> dict:
                         "type": type_name,
                         "value": value
                     })
+            log.info(f"[get_product_detail_info] reviewDetail 파싱 성공: {review_detail}")
     except Exception as e:
-        print(f"reviewDetail 파싱 실패: {e}")
+        log.warning(f"[get_product_detail_info] reviewDetail 파싱 실패: {e}")
 
     # 상세스펙 정보 추출
     detail_spec = {}
@@ -264,118 +279,9 @@ def get_product_detail_info(sb, goods_no: str) -> dict:
 
     }
 
-# 리뷰 크롤링은 사용하지 않음
-def get_product_reviews(sb, goods_no: str, max_pages: int = 0) -> list:
-    url = f"https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo={goods_no}"
-    sb.uc_open_with_reconnect(url, reconnect_time=5)
-    time.sleep(1)
-    html = sb.driver.page_source
-    soup = BeautifulSoup(html, 'html.parser')
-
-    # 총리뷰수 확인
-    try:
-        review_info = soup.select_one("#repReview em")
-        total_review = int(review_info.text.strip().replace("(", "").replace("건)", "").replace(",", ""))
-    except Exception:
-        total_review = 0
-
-    review_list = []
-    if total_review > 0:
-        try:
-            if sb.is_element_visible("a.goods_reputation"):
-                sb.click("a.goods_reputation")
-                WebDriverWait(sb.driver, 10).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, "ul.inner_list li"))
-                )
-
-                page_num = 1
-                while True:
-                    html = sb.driver.page_source
-                    soup = BeautifulSoup(html, 'html.parser')
-                    review_items = soup.select("ul.inner_list > li")
-                    for review in review_items:
-                        try:
-                            user = review.select_one("p.info_user a.id").text.strip()
-                        except Exception:
-                            user = ""
-                        try:
-                            date = review.select_one("div.score_area span.date").text.strip()
-                        except Exception:
-                            date = ""
-                        try:
-                            point_text = review.select_one("div.score_area span.point").text
-                            import re
-                            m = re.search(r"(\d+)점만점에\s*(\d+)점", point_text)
-                            star = m.group(2) if m else ""
-                        except Exception:
-                            star = ""
-                        poll_titles = []
-                        poll_values = []
-                        try:
-                            polls = review.select("div.poll_sample dl.poll_type1")
-                            for poll in polls:
-                                dt = poll.select_one("dt span")
-                                dd = poll.select_one("dd span.txt")
-                                poll_titles.append(dt.text.strip() if dt else "")
-                                poll_values.append(dd.text.strip() if dd else "")
-                        except Exception:
-                            pass
-                        try:
-                            content = review.select_one("div.txt_inner").text.strip()
-                        except Exception:
-                            content = ""
-
-                        review_dict = {
-                            "goodsNo": goods_no,
-                            "userId": user,
-                            "reviewDate": date,
-                            "star": star,
-                            "reviewText": content,
-                        }
-                        for idx, (title, value) in enumerate(zip(poll_titles, poll_values), 1):
-                            review_dict[f"criteria{idx}"] = title
-                            review_dict[f"criteria{idx}_value"] = value
-
-                        review_list.append(review_dict)
-
-                    # 페이지네이션 처리
-                    pageing = soup.select_one("div.pageing")
-                    if not pageing:
-                        break
-
-                    # 다음 페이지 버튼 찾기
-                    next_page = None
-                    for a in pageing.select("a[data-page-no]"):
-                        if a.text.strip() == str(page_num + 1):
-                            next_page = a
-                            break
-
-                    # max_pages 지정 시 제한
-                    if max_pages and page_num >= max_pages:
-                        break
-
-                    if next_page:
-                        # Selenium에서 해당 페이지 버튼 클릭
-                        try:
-                            sb.click(f'div.pageing a[data-page-no="{page_num + 1}"]')
-                            WebDriverWait(sb.driver, 10).until(
-                                EC.presence_of_element_located((By.CSS_SELECTOR, "ul.inner_list li"))
-                            )
-                            page_num += 1
-                            time.sleep(0.7)
-                        except Exception as e:
-                            print(f"{page_num+1}페이지 이동 실패:", e)
-                            break
-                    else:
-                        break
-        except Exception as e:
-            print("리뷰 정보 파싱 실패:", e)
-
-    return review_list
-
 
 ##### 실행 코드 #####
-# data, goods_no_list = get_top100_food()
+# data, goods_no_list = get_top100_skincare()
 
 # with SB(uc=True, test=True) as sb:
 #     detail_list = []
@@ -387,4 +293,4 @@ def get_product_reviews(sb, goods_no: str, max_pages: int = 0) -> list:
 # detail_df = pd.DataFrame(detail_list)
 # result_df = pd.concat([df.reset_index(drop=True), detail_df.reset_index(drop=True)], axis=1)
 
-# result_df.to_json('food_result.json', orient='records', force_ascii=False, indent=2)
+# result_df.to_json('skincare_result.json', orient='records', force_ascii=False, indent=2)
