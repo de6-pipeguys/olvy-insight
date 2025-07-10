@@ -20,7 +20,7 @@ pip install -r requirements.txt
 
 ## 검사 명령어
 
-Ruff를 수동으로 실행하려면 아래 명령어를 프로젝트 루트 디렉토리에서 실행하세요:
+Ruff를 수동으로 실행하려면 아래 명령어를 프로젝트 루트 디렉토리에서 실행합니다:
 
 ```bash
 ruff check .
@@ -34,10 +34,16 @@ ruff check 경로/파일명.py
 
 ## 자동 수정
 
-가능한 항목을 자동으로 수정하고 싶다면 다음 명령어를 사용하세요:
+가능한 항목을 자동으로 수정하고 싶다면 다음 명령어를 실행합니다:
 
 ```bash
-ruff check . --fix
+ruff format .
+```
+
+특정 파일만 검사하고 싶다면 다음과 같이 사용합니다:
+
+```bash
+ruff format 경로/파일명.py
 ```
 
 ## GitHub Actions와 연동
