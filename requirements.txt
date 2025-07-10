@@ -1,1 +1,7 @@
 ruff
+selenium==4.15.2
+webdriver-manager
+beautifulsoup4==4.12.2
+pandas==2.1.4
+seleniumbase==4.21.0
+boto3
