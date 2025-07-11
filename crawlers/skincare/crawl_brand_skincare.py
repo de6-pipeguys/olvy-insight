@@ -127,8 +127,7 @@ def get_brand_product_detail_info(sb, goods_no: str) -> dict:
         log.info(f"[get_brand_product_detail_info] 총 리뷰수: {total_review}")
     except Exception as e:
         log.warning(f"[get_brand_product_detail_info] 총 리뷰수 파싱 실패: {e}")
-        total_review = 0
-
+        total_review = ""
     # 리뷰평점
     try:
         review_score = soup.select_one("#repReview b")
@@ -136,14 +135,14 @@ def get_brand_product_detail_info(sb, goods_no: str) -> dict:
         log.info(f"[get_brand_product_detail_info] 리뷰평점: {review_score}")
     except Exception as e:
         log.warning(f"[get_brand_product_detail_info] 리뷰평점 파싱 실패: {e}")
-        review_score = None
+        review_score = ""
 
     # 리뷰 분포 기본값
     pctOf5 = pctOf4 = pctOf3 = pctOf2 = pctOf1 = None
 
     # 리뷰가 1건 이상 있을 때만 리뷰탭 클릭 및 분포 수집
     total_comment = ""
-    if total_review > 0:
+    if total_review > 1:
         try:
             sb.click("a.goods_reputation")
             log.info("[get_brand_product_detail_info] 리뷰탭 클릭 성공")
@@ -166,7 +165,10 @@ def get_brand_product_detail_info(sb, goods_no: str) -> dict:
                 log.warning("[get_brand_product_detail_info] 대표 코멘트 추출 실패")
 
         except Exception as e:
-            log.warning(f"[get_brand_product_detail_info] 리뷰 정보 없음: {e}")
+            log.warning(f"[get_brand_product_detail_info] 리뷰 정보 수집 실패: {e}")
+
+    else:
+        log.warning("[get_product_detail_info] 리뷰 정보 없음: 리뷰 수가 0건 입니다.")
 
     # === 상세스펙(구매정보) 추출 ===
     # 구매정보 탭 클릭
@@ -228,7 +230,6 @@ def get_brand_product_detail_info(sb, goods_no: str) -> dict:
     for title, key in spec_map.items():
         detail_spec[key] = get_detail_info(soup, title)
 
-    log.info("[get_brand_product_detail_info] 최종 데이터 리턴")
     return {
         "category": category,
         "totalComment": total_comment,
