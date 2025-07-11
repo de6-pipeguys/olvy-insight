@@ -127,7 +127,7 @@ def get_brand_product_detail_info(sb, goods_no: str) -> dict:
         log.info(f"[get_brand_product_detail_info] 총 리뷰수: {total_review}")
     except Exception as e:
         log.warning(f"[get_brand_product_detail_info] 총 리뷰수 파싱 실패: {e}")
-        total_review = ""
+        total_review = 0
     # 리뷰평점
     try:
         review_score = soup.select_one("#repReview b")
@@ -142,7 +142,7 @@ def get_brand_product_detail_info(sb, goods_no: str) -> dict:
 
     # 리뷰가 1건 이상 있을 때만 리뷰탭 클릭 및 분포 수집
     total_comment = ""
-    if total_review > 1:
+    if total_review > 0:
         try:
             sb.click("a.goods_reputation")
             log.info("[get_brand_product_detail_info] 리뷰탭 클릭 성공")
@@ -163,10 +163,8 @@ def get_brand_product_detail_info(sb, goods_no: str) -> dict:
             except Exception:
                 total_comment = ""
                 log.warning("[get_brand_product_detail_info] 대표 코멘트 추출 실패")
-
         except Exception as e:
             log.warning(f"[get_brand_product_detail_info] 리뷰 정보 수집 실패: {e}")
-
     else:
         log.warning("[get_product_detail_info] 리뷰 정보 없음: 리뷰 수가 0건 입니다.")
 
@@ -192,7 +190,7 @@ def get_brand_product_detail_info(sb, goods_no: str) -> dict:
                     dt_text = dt.text.strip()
                     dd_text = dd.text.strip()
                     if title in dt_text:
-                        log.info(f"[get_brand_product_detail_info] {title} 추출: {dd_text}")
+                        log.info(f"[get_brand_product_detail_info] {title} 추출 성공!")
                         return dd_text
         except Exception as e:
             log.warning(f"[get_brand_product_detail_info] 상세 정보 파싱 실패 ({title}): {e}")
