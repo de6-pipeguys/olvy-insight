@@ -128,7 +128,6 @@ def get_brand_product_detail_info(sb, goods_no: str) -> dict:
     except Exception as e:
         log.warning(f"[get_brand_product_detail_info] 총 리뷰수 파싱 실패: {e}")
         total_review = 0
-
     # 리뷰평점
     try:
         review_score = soup.select_one("#repReview b")
@@ -136,7 +135,7 @@ def get_brand_product_detail_info(sb, goods_no: str) -> dict:
         log.info(f"[get_brand_product_detail_info] 리뷰평점: {review_score}")
     except Exception as e:
         log.warning(f"[get_brand_product_detail_info] 리뷰평점 파싱 실패: {e}")
-        review_score = None
+        review_score = ""
 
     # 리뷰 분포 기본값
     pctOf5 = pctOf4 = pctOf3 = pctOf2 = pctOf1 = None
@@ -164,9 +163,10 @@ def get_brand_product_detail_info(sb, goods_no: str) -> dict:
             except Exception:
                 total_comment = ""
                 log.warning("[get_brand_product_detail_info] 대표 코멘트 추출 실패")
-
         except Exception as e:
-            log.warning(f"[get_brand_product_detail_info] 리뷰 정보 없음: {e}")
+            log.warning(f"[get_brand_product_detail_info] 리뷰 정보 수집 실패: {e}")
+    else:
+        log.warning("[get_product_detail_info] 리뷰 정보 없음: 리뷰 수가 0건 입니다.")
 
     # === 상세스펙(구매정보) 추출 ===
     # 구매정보 탭 클릭
@@ -190,7 +190,7 @@ def get_brand_product_detail_info(sb, goods_no: str) -> dict:
                     dt_text = dt.text.strip()
                     dd_text = dd.text.strip()
                     if title in dt_text:
-                        log.info(f"[get_brand_product_detail_info] {title} 추출: {dd_text}")
+                        log.info(f"[get_brand_product_detail_info] {title} 추출 성공!")
                         return dd_text
         except Exception as e:
             log.warning(f"[get_brand_product_detail_info] 상세 정보 파싱 실패 ({title}): {e}")
@@ -228,7 +228,6 @@ def get_brand_product_detail_info(sb, goods_no: str) -> dict:
     for title, key in spec_map.items():
         detail_spec[key] = get_detail_info(soup, title)
 
-    log.info("[get_brand_product_detail_info] 최종 데이터 리턴")
     return {
         "category": category,
         "totalComment": total_comment,
