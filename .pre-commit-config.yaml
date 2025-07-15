@@ -1,0 +1,23 @@
+default_stages: [pre-commit, pre-push]
+default_language_version:
+  python: python3
+minimum_pre_commit_version: '3.2.0'
+
+repos:
+  # 기본 안전망: 민감정보, 충돌 마커, 대용량 파일, 공백 처리
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: detect-private-key          # SSH 키, 비밀 토큰 유출 방지
+      - id: end-of-file-fixer           # EOF 빈 줄 자동 추가
+      - id: check-added-large-files     # 500KB 이상 큰 파일 커밋 차단
+      - id: trailing-whitespace         # 줄 끝 공백 제거
+      - id: check-merge-conflict        # Git 충돌 마커 차단
+
+  # Python 린트 & 포맷: Ruff
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.3  # 최신 안정 버전, 필요 시 https://github.com/astral-sh/ruff-pre-commit/releases 참고
+    hooks:
+      - id: ruff                      # 린트 + 자동 수정 (--fix)
+        args: [--fix]
+      - id: ruff-format               # 코드 포맷 정렬
