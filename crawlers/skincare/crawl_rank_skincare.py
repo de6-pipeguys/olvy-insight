@@ -131,7 +131,8 @@ def get_top100_skincare() -> tuple:
                     "originalPrice": price_original,
                     "flagList": flag_list,  # 리스트로 저장
                     "createdAt": collected_at,
-                    "isSoldout": bool(is_soldout)
+                    "isSoldout": bool(is_soldout),
+                    "category": "스킨케어"
                 }
             )
             log.info(f"[get_top100_skincare] {rank_val}위 상품: {brand} {name} (goods_no: {goods_no})")
@@ -279,20 +280,3 @@ def get_product_detail_info(sb, goods_no: str) -> dict:
         **detail_spec,
 
     }
-
-
-##### 실행 코드 #####
-# data, goods_no_list = get_top100_skincare()
-
-# with SB(uc=True, test=True) as sb:
-#     detail_list = []
-#     for goods_no in goods_no_list:
-#         detail = get_product_detail_info(sb, goods_no)
-#         detail_list.append(detail)
-
-# df = pd.DataFrame(data)
-# detail_df = pd.DataFrame(detail_list)
-# result_df = pd.concat([df.reset_index(drop=True), detail_df.reset_index(drop=True)], axis=1)
-
-# result_df.to_json('skincare_result.json', orient='records', force_ascii=False, indent=2)
-

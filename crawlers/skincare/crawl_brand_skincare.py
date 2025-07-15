@@ -18,7 +18,7 @@ def get_brand(brand_name, brand_code):
     with SB(uc=True, test=True, headless=True) as sb:
         log.info(f"[get_brand] URL 오픈: {url}")
         sb.open(url)
-        time.sleep(1)
+        time.sleep(3)  # 페이지 렌더링 대기 (3초, 필요시 더 늘릴 수 있음)
 
         page = 1
         while True:
@@ -241,32 +241,3 @@ def get_brand_product_detail_info(sb, goods_no: str) -> dict:
         "reviewDetail": review_detail,
         **detail_spec,
     }
-
-##### 실행 코드 #####
-# PB_BRAND_CODE_DICT = {
-#     "바이오힐 보": "A000897",
-#     "브링그린": "A002253",
-#     "웨이크메이크": "A001240",
-#     "컬러그램": "A002712",
-#     "필리밀리": "A002502",
-#     "아이디얼포맨": "A001643",
-#     "라운드어라운드": "A001306",
-#     "식물나라": "A000036",
-#     "케어플러스": "A003339",
-#     "탄탄": "A015673",
-#     "딜라이트 프로젝트": "A003361",
-# }
-
-# for brand_name, brand_code in PB_BRAND_CODE_DICT.items():
-#     df = get_brand(brand_name, brand_code)
-
-    # with SB(uc=True, test=True) as sb:
-    #     detail_list = []
-    #     for goods_no in df['goodsNo']:
-    #         detail = get_brand_product_detail_info(sb, goods_no)
-    #         detail_list.append(detail)
-
-#     detail_df = pd.DataFrame(detail_list)
-#     result_df = pd.concat([df.reset_index(drop=True), detail_df.reset_index(drop=True)], axis=1)
-
-#     result_df.to_json('skincare_result.json', orient='records', force_ascii=False, indent=2)
