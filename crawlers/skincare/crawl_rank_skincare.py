@@ -69,13 +69,7 @@ def get_top100_skincare() -> tuple:
                 # goods_no_list에 바로 추가
                 if goods_no:
                     goods_no_list.append(goods_no)
-                # 정가 (null 허용)
-                try:
-                    price_original = item.find_element(
-                        By.CSS_SELECTOR, ".prd_price .tx_org .tx_num"
-                    ).text.strip()
-                except Exception:
-                    price_original = ""
+                
                 # 구매가격
                 try:
                     price_final = item.find_element(
@@ -84,6 +78,13 @@ def get_top100_skincare() -> tuple:
                 except Exception as e:
                     log.warning(f"[get_top100_skincare] 구매가격 정보 파싱 실패: {e}")
                     price_final = ""
+                # 정가 (null 허용)
+                try:
+                    price_original = item.find_element(
+                        By.CSS_SELECTOR, ".prd_price .tx_org .tx_num"
+                    ).text.strip()
+                except Exception:
+                    price_original = price_final
                 # 기타 프로모션 정보(null 허용)
                 try:
                     flag_spans = item.find_elements(By.CSS_SELECTOR, ".prd_flag .icon_flag")
@@ -118,8 +119,6 @@ def get_top100_skincare() -> tuple:
                 is_soldout = soldout_flag.is_displayed()
             except Exception:
                 is_soldout = False
-
-
 
             data.append(
                 {
