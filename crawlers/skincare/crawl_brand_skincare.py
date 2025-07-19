@@ -71,9 +71,8 @@ def get_brand(brand_name, brand_code):
                 try:
                     flag_spans = item.select("div.flags span.flag")
                     flag_list = [span.text.strip() for span in flag_spans if span.text.strip()]
-                    flag_str = ",".join(flag_list) if flag_list else ""
                 except Exception:
-                    flag_str = ""
+                    flag_list = []
                 try:
                     soldout_flag = item.select_one("span.status_flag.soldout")
                     is_soldout = bool(soldout_flag)
@@ -86,7 +85,7 @@ def get_brand(brand_name, brand_code):
                     "goodsName": name,
                     "salePrice": price_final,
                     "originalPrice": price_original,
-                    "flagList": flag_str,
+                    "flagList": flag_list,
                     "isSoldout": is_soldout,
                     "createdAt": collected_at
                 })
