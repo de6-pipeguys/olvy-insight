@@ -18,8 +18,8 @@ def get_brand(brand_name, brand_code):
     with SB(uc=True, test=True, headless=True) as sb:
         log.info(f"[get_brand] URL 오픈: {url}")
         sb.open(url)
-        time.sleep(10)  # 페이지 렌더링 대기 (3초, 필요시 더 늘릴 수 있음)
-
+        time.sleep(10)
+        
         page = 1
         while True:
             log.info(f"[get_brand] {page}페이지 크롤링 시작")
